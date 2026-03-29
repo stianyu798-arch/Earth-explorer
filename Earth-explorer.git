@@ -1,0 +1,389 @@
+/**
+ * 未来地理探索舱 - 3D地球地形探索Web应用主架构
+ * 着重UI结构、色彩体系、悬浮布局、3D球体背景和顺滑交互基础骨架
+ * 使用React + Three.js（@react-three/fiber）结构草案
+ * 注：本段落代码为最小可运行骨架，聚焦总体布局和沉浸感氛围，功能细节与地图数据集成需后续补充
+ */
+
+import React, { Suspense, useState } from "react";
+import { Canvas } from "@react-three/fiber";
+import { OrbitControls, Stars, Html } from "@react-three/drei";
+
+// 色彩体系常量
+const COLORS = {
+  deepSpace: "#0B1628",
+  atmosphereBlue: "#3C7DD9",
+  surfaceSea: "#174A6F",
+  nightLand: "#17233C",
+  frostGlass: "rgba(18,21,33,0.68)",
+  highlight: "#5DF9FF",
+  neutralText: "#F9F9F9",
+  muted: "rgba(255,255,255,0.14)",
+};
+
+// 伪3D地球（带大气光晕球体）
+function ImmersiveEarth() {
+  return (
+    <>
+      {/* 地球球体 */}
+      <mesh>
+        <sphereGeometry args={[1, 64, 64]} />
+        <meshPhysicalMaterial
+          color={COLORS.surfaceSea}
+          roughness={0.5}
+          metalness={0.1}
+          clearcoat={0.3}
+        />
+      </mesh>
+      {/* 大气光晕 */}
+      <mesh>
+        <sphereGeometry args={[1.06, 64, 64]} />
+        <meshBasicMaterial color={COLORS.atmosphereBlue} transparent opacity={0.18} />
+      </mesh>
+      {/* 星点背景 */}
+      <Stars radius={12} depth={60} count={1800} factor={2.2} fade />
+    </>
+  );
+}
+
+function TopBar() {
+  return (
+    <div
+      style={{
+        position: "absolute",
+        top: 24,
+        left: 24,
+        right: 24,
+        height: 56,
+        display: "flex",
+        alignItems: "center",
+        borderRadius: 18,
+        padding: "0 32px",
+        backdropFilter: "blur(14px)",
+        background: COLORS.frostGlass,
+        border: `1.5px solid ${COLORS.muted}`,
+        zIndex: 20,
+        justifyContent: "space-between",
+        color: COLORS.neutralText,
+        fontFamily: "Montserrat, Arial, sans-serif",
+        fontWeight: 500,
+        letterSpacing: "0.02em",
+        fontSize: 19,
+        boxShadow: "0 4px 40px 0 rgba(0,0,0,0.12)"
+      }}
+    >
+      {/* 左侧品牌Logo+名 */}
+      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <div
+          style={{
+            width: 38, height: 38, background: COLORS.highlight,
+            borderRadius: "50%", marginRight: 10, boxShadow: "0 0 14px 3px #3999ff77",
+            display: "flex", alignItems: "center", justifyContent: "center", color: "#093B52", fontWeight: 900
+          }}>
+          <span style={{ fontSize: 25, fontFamily: "Montserrat, Arial" }}>🌐</span>
+        </div>
+        <span style={{ letterSpacing: "0.02em", fontWeight: 700, fontSize: 20 }}>
+          未来地理探索舱
+        </span>
+      </div>
+      {/* 中部核心功能入口 */}
+      <div style={{ display: "flex", gap: 38 }}>
+        <TopBarBtn label="世界地图" />
+        <TopBarBtn label="地形3D" active />
+        <TopBarBtn label="历史地图" />
+        <TopBarBtn label="图层管理" />
+      </div>
+      {/* 右侧快捷 */}
+      <div style={{ display: "flex", gap: 32 }}>
+        <TopBarIconBtn icon="🔎" label="搜索" />
+        <TopBarIconBtn icon="👤" label="用户" />
+        <TopBarIconBtn icon="⚙️" label="设置" />
+      </div>
+    </div>
+  );
+}
+
+function TopBarBtn({ label, active }) {
+  return (
+    <div
+      style={{
+        padding: "6px 18px",
+        borderRadius: 9,
+        cursor: "pointer",
+        background: active
+          ? `linear-gradient(90deg,${COLORS.atmosphereBlue} 60%,${COLORS.highlight} 100%)`
+          : "rgba(255,255,255,0.04)",
+        color: active ? "#091321" : "#F5FAFF",
+        fontWeight: active ? 700 : 500,
+        letterSpacing: "0.025em",
+        fontSize: 15,
+        transition: "background 0.24s",
+        boxShadow: active ? "0 1px 14px 0 #1a72be44" : undefined,
+      }}
+    >{label}</div>
+  );
+}
+
+function TopBarIconBtn({ icon, label }) {
+  return (
+    <div
+      title={label}
+      style={{
+        width: 34, height: 34, borderRadius: "50%",
+        background: "rgba(255,255,255,0.09)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        fontSize: 20, color: COLORS.highlight, cursor: "pointer",
+        transition: "background 0.22s, color 0.18s"
+      }}
+    >{icon}</div>
+  );
+}
+
+function SidePanel({ position = "left", children, open, setOpen }) {
+  const slideX = position === "left" ? 0 : undefined;
+  return (
+    <div
+      style={{
+        position: "absolute",
+        top: 96,
+        [position]: open ? 24 : -280,
+        transition: "all 0.38s cubic-bezier(.55,.03,.57,1)",
+        width: 260,
+        minHeight: 440,
+        maxHeight: "78vh",
+        zIndex: 18,
+        background: COLORS.frostGlass,
+        borderRadius: 19,
+        boxShadow: "0 2px 32px 2px #14346944",
+        border: `1.2px solid ${COLORS.muted}`,
+        padding: open ? "24px 18px" : "0px",
+        overflow: "hidden",
+        display: "flex",
+        flexDirection: "column"
+      }}
+    >
+      <button
+        style={{
+          position: "absolute", top: 12, [position === "left" ? "right" : "left"]: 14,
+          width: 26, height: 26, borderRadius: 13,
+          border: "none", background: COLORS.muted,
+          color: COLORS.neutralText, fontSize: 17, cursor: "pointer"
+        }}
+        onClick={() => setOpen((v) => !v)}
+        aria-label="Toggle Side Panel"
+      >
+        {open ? "←" : "→"}
+      </button>
+      {open ? children : <div style={{height: 32}}></div>}
+    </div>
+  );
+}
+
+function BottomBar() {
+  // 核心地图控件区
+  return (
+    <div
+      style={{
+        position: "absolute", left: 0, right: 0, bottom: 26,
+        display: "flex", flexDirection: "column", alignItems: "center", zIndex: 15
+      }}
+    >
+      <div
+        style={{
+          display: "flex", gap: 18, padding: "12px 38px", borderRadius: 17,
+          background: COLORS.frostGlass, boxShadow: "0 2px 16px 0 #15417433",
+          border: `1.2px solid ${COLORS.muted}`,
+          backdropFilter: "blur(9px)"
+        }}
+      >
+        <BottomControl icon="🔍➖" label="缩小" />
+        <BottomControl icon="🔃" label="旋转" />
+        <BottomControl icon="📍" label="复位" />
+        <BottomControl icon="🌌" label="太空" />
+        <BottomControl icon="🌏" label="地面" />
+        <BottomControl icon="🛩️" label="航拍" />
+      </div>
+      {/* 时间轴进度条 */}
+      <div style={{
+        marginTop: 16, width: 360, height: 16, borderRadius: 7,
+        background: "rgba(53,67,94,0.37)", position: "relative", boxShadow: "0 0 2px 0 #202940",
+        display: "flex", alignItems: "center", justifyContent: "center"
+      }}>
+        <div style={{
+          position: "absolute", left: 0, top: 0, bottom: 0,
+          width: "60%", background: `linear-gradient(90deg,#539dff 0%,#42ffff 100%)`,
+          borderRadius: 7, transition: "width 0.5s cubic-bezier(.4,0,.2,1)"
+        }} />
+        <span style={{ position: "relative", fontSize: 12, color: "#B2E0FD", fontWeight: 500, zIndex: 1, left: 8, letterSpacing: 1 }}>
+          2024.03 － 历史时序
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function BottomControl({ icon, label }) {
+  return (
+    <button
+      aria-label={label}
+      style={{
+        width: 38, height: 38, borderRadius: 13, background: COLORS.muted, color: COLORS.highlight,
+        fontSize: 22, cursor: "pointer", outline: "none", border: "none", boxShadow: "none",
+        transition: "background 0.21s, color 0.15s"
+      }}>
+      <span>{icon}</span>
+    </button>
+  );
+}
+
+export default function ExplorerApp() {
+  const [leftOpen, setLeftOpen] = useState(false);
+  const [rightOpen, setRightOpen] = useState(false);
+
+  // 页面大背景
+  return (
+    <div style={{
+      width: "100vw", height: "100vh", background: `radial-gradient(ellipse at 60% 22%, ${COLORS.deepSpace} 57%, #141D33 91%)`,
+      overflow: "hidden", position: "relative", fontFamily: "Montserrat, Arial, sans-serif"
+    }}>
+      {/* Three.js Canvas：全屏地球场景 */}
+      <Canvas
+        dpr={[1,2]}
+        camera={{ position: [0, 0, 3.7], fov: 40, near: 0.1, far: 1000 }}
+        style={{ position: "absolute", inset: 0, background: "transparent" }}>
+        <ambientLight intensity={0.39} />
+        <directionalLight
+          position={[3, 8, 6]}
+          intensity={1.25}
+          color={COLORS.atmosphereBlue}
+          castShadow
+        />
+        {/* 地球主场景模型 */}
+        <Suspense fallback={<Html><span style={{color:"#9BCAF9"}}>加载地球…</span></Html>}>
+          <ImmersiveEarth />
+        </Suspense>
+        {/* 操作：旋转/缩放控制 */}
+        <OrbitControls
+          enablePan={false}
+          enableDamping
+          dampingFactor={0.13}
+          maxDistance={10}
+          minDistance={2.15}
+          enableZoom
+          zoomSpeed={0.66}
+          autoRotate
+          autoRotateSpeed={0.2}
+        />
+      </Canvas>
+      {/* 顶部通栏 */}
+      <TopBar />
+      {/* 左边悬浮图层控制面板 */}
+      <SidePanel position="left" open={leftOpen} setOpen={setLeftOpen}>
+        <h2 style={{ color: COLORS.highlight, fontSize: 17, fontWeight: 700, marginBottom: 18 }}>
+          图层管理
+        </h2>
+        <LayerSwitch label="地形" active />
+        <LayerSwitch label="国界" />
+        <LayerSwitch label="城市道路" />
+        <LayerSwitch label="建筑" />
+        <LayerSwitch label="河流水域" />
+        <LayerSwitch label="卫星影像" />
+        <LayerSwitch label="气候分区" />
+      </SidePanel>
+      {/* 右侧地点详情面板 */}
+      <SidePanel position="right" open={rightOpen} setOpen={setRightOpen}>
+        <h2 style={{ color: COLORS.highlight, fontSize: 17, marginBottom: 11 }}>地点详情</h2>
+        <DetailField label="名称" value="上海市" bold />
+        <DetailField label="坐标" value="31.2304°N, 121.4737°E" />
+        <DetailField label="海拔" value="平均4 m" />
+        <DetailField label="面积" value="6,340 km²" />
+        <DetailField label="人口" value="约2,460万" />
+        {/* ...更多地理属性 */}
+      </SidePanel>
+      {/* 底部悬浮操作条 */}
+      <BottomBar />
+      {/* 悬浮按钮 - 打开面板 */}
+      {!leftOpen &&
+        <button
+          style={{
+            position: "absolute", top: 124, left: 10, zIndex: 12, width: 28, height: 82,
+            borderRadius: "0 13px 13px 0", background: COLORS.frostGlass, color: "#B6EFFE",
+            border: "none", fontWeight: 800, fontSize: 18, cursor: "pointer"
+          }}
+          onClick={() => setLeftOpen(true)}
+          aria-label="打开图层面板"
+        >{"→"}</button>}
+      {!rightOpen &&
+        <button
+          style={{
+            position: "absolute", top: 200, right: 10, zIndex: 12, width: 28, height: 82,
+            borderRadius: "13px 0 0 13px", background: COLORS.frostGlass, color: "#B6EFFE",
+            border: "none", fontWeight: 800, fontSize: 18, cursor: "pointer"
+          }}
+          onClick={() => setRightOpen(true)}
+          aria-label="打开地点详情"
+        >{"←"}</button>}
+      {/* 幻灯首页（超大主标题，随交互淡出）*/}
+      <div
+        style={{
+          position: "absolute", inset: 0, pointerEvents: "none",
+          display: "flex", flexDirection: "column",
+          alignItems: "center", justifyContent: "center",
+          zIndex: 100, opacity: 0.97,
+          animation: "fadeOutWelcome 2.3s 2.6s forwards",
+        }}>
+        <h1 style={{
+          color: "#fff", fontSize: 61, letterSpacing: "0.2em",
+          fontWeight: 900, textShadow: "0 0 26px #3be9ffcc, 0 4px 72px #16426844",
+          marginBottom: 40, textTransform: "uppercase", lineHeight: 1.1
+        }}>
+          EXPLORER<br />
+          <span style={{
+            fontSize: 32, fontWeight: 700, letterSpacing: "0.09em",
+            textShadow: "0 0 14px #3c8bdc99"
+          }}>未来地理探索舱</span>
+        </h1>
+      </div>
+      {/* Welcome淡出动画 */}
+      <style>{`
+      @keyframes fadeOutWelcome {
+        to { opacity: 0; visibility: hidden; }
+      }
+      `}</style>
+    </div>
+  );
+}
+
+function LayerSwitch({ label, active }) {
+  return (
+    <div style={{
+      display: "flex", alignItems: "center", justifyContent: "space-between",
+      marginBottom: 14, padding: "7px 13px 7px 9px", borderRadius: 9,
+      background: active ? "rgba(46,192,241,0.22)" : "rgba(255,255,255,0.04)",
+      cursor: "pointer", fontWeight: active ? 800 : 500, color: active ? COLORS.highlight : COLORS.neutralText,
+      fontSize: 15,
+      transition: "background 0.21s, color 0.12s"
+    }}>
+      <span>{label}</span>
+      <span style={{
+        width: 18, height: 18, borderRadius: 9,
+        background: active ? `linear-gradient(135deg,${COLORS.atmosphereBlue} 60%,${COLORS.highlight})` : COLORS.muted,
+        border: active ? "1.5px solid #95f4ff87" : "1.1px solid #2B3546",
+        display: "inline-block",
+      }} />
+    </div>
+  );
+}
+
+function DetailField({ label, value, bold }) {
+  return (
+    <div style={{
+      display: "flex", alignItems: "center",
+      fontSize: bold ? 16 : 14, color: bold ? "#5DF9FF" : "#D6EAFB",
+      fontWeight: bold ? 800 : 500, lineHeight: 1.5, marginBottom: 7
+    }}>
+      <span style={{ width: 62, opacity: 0.64 }}>{label}</span>
+      <span style={{ marginLeft: 20 }}>{value}</span>
+    </div>
+  );
+}
